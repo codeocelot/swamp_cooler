@@ -3,22 +3,47 @@
 #define DHTPIN 2
 #define RLYPIN 3
 #define LEDPIN 13
-#define NCPIN 4
-#define NOPIN 5
-#define RLYIN 6
-#define REFPIN 0
-//#define NCPIN 8
-//#define NOPIN 9
-//#define RLYIN 5
 #define DHTTYPE DHT22
+#define DELAY 2000
 
 DHT dht(DHTPIN, DHTTYPE);
 
-bool evalTemp(double temp){return temp > 23.0;}
+struct State {
+  String status;
+  float temp;
+  float hum;
+  float hi;  
+} state;
 
-bool evalHumidity(double humidity){return humidity > 50;}
+boolean evalTemp(State state){
+  if(state.status == "ON"){
+    return state.temp > 23.0;
+  } if(state.status == "OFF"){
+    return state.temp > 20.0;  
+  } else {
+    return false;  
+  }
+}
 
-bool evalHI(double heatIndex){ return heatIndex > 25.0;}
+boolean evalHumidity(State state){
+  if(state.status == "ON"){
+    return state.hum > 30.0;
+  } if(state.status == "OFF"){
+  return state.hum > 60.0;  
+  } else {
+  return false;  
+  }
+}
+
+boolean evalHI(State state){ 
+  if(state.status == "ON"){
+    return state.hi > 20.0;
+  } if(state.status == "OFF"){
+    return state.hi > 25.0;  
+  } else {
+    return false;  
+  }
+}
 
 void setup() {
   Serial.begin(9600);
@@ -29,108 +54,50 @@ void setup() {
   pinMode(RLYPIN,OUTPUT);
 }
 
-void startCooler(void){
+void startCooler(){
   digitalWrite(RLYPIN,HIGH);  
 }
 
-void endCooler(void){
+void endCooler(){
   digitalWrite(RLYPIN,LOW);  
 }
 
-void loop() {
-  float humidity = dht.readHumidity();
-  float temp = dht.readTemperature();
+int handleCooler(){
+  state.hum = dht.readHumidity();
+  state.temp = dht.readTemperature();
 
   // Check if any reads failed and exit early (to try again).
-  if (isnan(humidity) || isnan(temp)) {
+  if (isnan(state.hum) || isnan(state.temp)) {
     Serial.println("Failed to read from DHT sensor!"); 
-    return;
+    return -1;
   }
 
-  float heatIndex = dht.computeHeatIndex(temp, humidity, false);
+  state.hi = dht.computeHeatIndex(state.temp, state.hum, false);
 
   Serial.print("Humidity: ");
-  Serial.print(humidity);
+  Serial.print(state.hum);
   Serial.print("  Temperature (C): ");
-  Serial.print(temp);
+  Serial.print(state.temp);
   Serial.print("  Heat Index:");
-  Serial.println(heatIndex);
+  Serial.println(state.hi);
 
-  if(evalTemp(temp) || evalHumidity(humidity) || evalHI(heatIndex)){
-    Serial.println("Starting Cooler");
+  if(evalTemp(state) || evalHumidity(state) || evalHI(state)){
+    state.status == "OFF" && Serial.println("Starting Cooler");
     startCooler();  
+    state.status = "ON";
   } else {
-    Serial.println("Ending Cooler");
+    state.status == "ON" && Serial.println("Ending Cooler");
     endCooler();  
+    state.status = "OFF";
   }
-  delay(2000);
+  return 0;
+ }
+
+void loop() {
+  int hasFailed = handleCooler();
+
+  if(hasFailed == 0){
+    delay(DELAY);
+  }
 }
-
-//void loop(){
-//  Serial.println("Writing HIGH");
-//  digitalWrite(RLYPIN,HIGH);
-//  delay(5000);
-//  Serial.println("Writing LOW");
-//  digitalWrite(RLYPIN,LOW);
-//  delay(5000);
-//}
-
-//void loop(){
-//
-//    Serial.println("Writing HIGH to NCPIN");
-//    digitalWrite(NCPIN,HIGH);
-//
-//    Serial.print("RLYIN ");
-//    Serial.println(analogRead(RLYIN));
-//
-//    digitalWrite(NCPIN,LOW);
-//
-//    Serial.println("WRITING HIGH TO NOPIN");
-//    digitalWrite(NOPIN,HIGH);
-//
-//    Serial.print("RLYIN ");
-//    Serial.println(analogRead(RLYIN));
-//
-//    digitalWrite(NOPIN,LOW);
-//
-//    delay(2000);
-//}
-//
-//void loop(){
-//  Serial.println("Turning on Signal to middle");
-//  float ref = analogRead(REFPIN);
-//  Serial.print("ref : ");
-//  Serial.println(ref);
-//  
-//  digitalWrite(RLYPIN, HIGH);
-//
-//  //delay(100);
-//
-//  float ncOut = analogRead(NCPIN);
-//  float noOut = analogRead(NOPIN);
-//  Serial.print("NC:");
-//  Serial.println(ncOut);
-//
-//  Serial.print("NO: ");
-//  Serial.println(noOut);
-//
-//  delay(5000);
-//
-//   Serial.println("Turning OFF Signal to middle");
-//  digitalWrite(RLYPIN, LOW);
-//
-//  ref = analogRead(REFPIN);
-//  Serial.print("ref: ");
-//  Serial.println(ref);
-//
-//  ncOut = analogRead(NCPIN);
-//  noOut = analogRead(NOPIN);
-//  Serial.print("NC:");
-//  Serial.println(ncOut);
-//
-//  Serial.print("NO: ");
-//  Serial.println(noOut);
-//
-//  delay(5000);
-//}
 
